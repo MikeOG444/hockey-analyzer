@@ -399,57 +399,47 @@ class PuckTracker:
             'is_puck_currently_tracked': len(self.puck_history) > 0 and self.frames_since_detection < 10
         }
 
-    def visualize_tracking(self, frame: np.ndarray, puck: Optional[PuckCandidate]) -> np.ndarray:
-        """Draw realistic puck tracking visualization"""
+    def visualize_tracking(self, frame: np.ndarray, candidates: List[PuckCandidate], 
+                          tracked_puck: Optional[PuckCandidate]) -> np.ndarray:
+        """Draw puck tracking visualization on frame"""
         vis_frame = frame.copy()
-
-        # Draw tracked puck (only if confident)
-        if puck and puck.confidence > 0.4:
-            x, y = puck.position
-
-            # Color based on detection method
-            if puck.detection_method == "prediction":
-                color = (0, 255, 255)  # Yellow for prediction
-                thickness = 1
-            else:
-                color = (0, 0, 255)  # Red for actual detection
-                thickness = 2
-
-            # Draw puck
-            radius = max(4, int(math.sqrt(puck.size)))
-            cv2.circle(vis_frame, (x, y), radius, color, thickness)
-
-            # Add confidence and method
-            text = f"PUCK: {puck.confidence:.2f} ({puck.detection_method})"
-            cv2.putText(vis_frame, text, (x-30, y-15),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-
+        
+        # Draw all candidates
+        for i, candidate in enumerate(candidates):
+            x, y = candidate.position
+            color = (0, 255, 255)  # Yellow for candidates
+            radius = max(3, int(math.sqrt(candidate.size)))
+            
+            cv2.circle(vis_frame, (x, y), radius, color, 1)
+            cv2.putText(vis_frame, f"{candidate.confidence:.2f}", 
+                       (x-10, y-15), cv2.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
+        
+        # Draw tracked puck
+        if tracked_puck:
+            x, y = tracked_puck.position
+            color = (0, 0, 255)  # Red for tracked puck
+            radius = max(5, int(math.sqrt(tracked_puck.size)))
+            
+            cv2.circle(vis_frame, (x, y), radius, color, 2)
+            cv2.putText(vis_frame, f"PUCK: {tracked_puck.confidence:.2f}", 
+                       (x-20, y-20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 2)
+            
             # Draw velocity vector if available
-            if puck.velocity and puck.detection_method != "prediction":
-                vx, vy = puck.velocity
-                scale = 0.05  # Scale for visualization
+            if tracked_puck.velocity:
+                vx, vy = tracked_puck.velocity
+                scale = 0.1  # Scale down velocity for visualization
                 end_x = int(x + vx * scale)
                 end_y = int(y + vy * scale)
                 cv2.arrowedLine(vis_frame, (x, y), (end_x, end_y), color, 2)
-
-        # Draw puck trail (last few positions)
+        
+        # Draw puck history trail
         if len(self.puck_history) > 1:
-            trail_points = [(p.position[0], p.position[1]) for p in list(self.puck_history)[-8:]]
+            # Convert deque to list for slicing
+            history_list = list(self.puck_history)
+            trail_points = [puck.position for puck in history_list[-10:]]  # Last 10 positions
             for i in range(1, len(trail_points)):
-                alpha = i / len(trail_points)
-                color = (int(100 * alpha), 0, int(255 * alpha))
-                cv2.line(vis_frame, trail_points[i-1], trail_points[i], color, 1)
-
-        # Add detection statistics
-        stats = self.get_detection_stats()
-        info_text = [
-            f"Puck Detection Rate: {stats['detection_rate']*100:.1f}%",
-            f"Frames since detection: {stats['frames_since_last_detection']}",
-            f"Status: {'TRACKING' if stats['is_puck_currently_tracked'] else 'SEARCHING'}"
-        ]
-
-        for i, text in enumerate(info_text):
-            cv2.putText(vis_frame, text, (10, vis_frame.shape[0] - 60 + i*20),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-
+                alpha = i / len(trail_points)  # Fade trail
+                color = (int(255 * alpha), 0, 0)
+                cv2.line(vis_frame, trail_points[i-1], trail_points[i], color, 2)
+        
         return vis_frame

@@ -9,48 +9,54 @@ class IceDetector:
         self.ice_characteristics = None
         
     def detect_ice_surface(self, frame):
-        """Detect ice surface using color, texture, and geometric features"""
+        """Simplified ice detection using only proven methods (color + texture)"""
         
         try:
-            # Convert to different color spaces for analysis
+            # Convert to needed color spaces
             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
             lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             
-            # Method 1: White/light color detection
+            print("🧊 Running simplified ice detection (color + texture only)...")
+            
+            # Method 1: Color detection (primary method)
             ice_mask_color = self.detect_white_surfaces(hsv, lab)
+            color_percentage = (np.sum(ice_mask_color > 0) / ice_mask_color.size) * 100
+            print(f"   Color detection: {color_percentage:.1f}% of frame")
             
-            # Method 2: Texture analysis - ice is smoother than boards/crowd
+            # Method 2: Texture detection (refinement method)
             ice_mask_texture = self.detect_smooth_surfaces(gray)
+            texture_percentage = (np.sum(ice_mask_texture > 0) / ice_mask_texture.size) * 100
+            print(f"   Texture detection: {texture_percentage:.1f}% of frame")
             
-            # Method 3: Geometric constraints - ice is typically the largest flat area
-            ice_mask_geometric = self.detect_large_flat_areas(gray)
+            # NEW APPROACH: Intersection + Expansion
+            # Step 1: Find high-confidence ice (where color AND texture agree)
+            definite_ice = cv2.bitwise_and(ice_mask_color, ice_mask_texture)
+            definite_percentage = (np.sum(definite_ice > 0) / definite_ice.size) * 100
+            print(f"   High-confidence ice: {definite_percentage:.1f}% of frame")
             
-            # Method 4: Use ice markings as reference points (with error handling)
-            try:
-                ice_mask_markings = self.detect_by_ice_markings(frame)
-            except Exception as e:
-                print(f"Warning: Ice marking detection failed: {e}")
-                ice_mask_markings = np.zeros(frame.shape[:2], dtype=np.uint8)
+            # Step 2: Expand from high-confidence areas through white areas
+            combined_mask = self.expand_ice_from_seed_areas(definite_ice, ice_mask_color)
+            combined_percentage = (np.sum(combined_mask > 0) / combined_mask.size) * 100
+            print(f"   After expansion: {combined_percentage:.1f}% of frame")
             
-            # Combine all methods
-            combined_mask = self.combine_ice_masks([
-                ice_mask_color,
-                ice_mask_texture, 
-                ice_mask_geometric,
-                ice_mask_markings
-            ])
-            
-            # Clean up the mask
+            # Clean up the final mask
             final_mask = self.clean_ice_mask(combined_mask)
+            final_percentage = (np.sum(final_mask > 0) / final_mask.size) * 100
+            print(f"   Final cleaned mask: {final_percentage:.1f}% of frame")
             
             self.ice_mask = final_mask
             return final_mask
             
         except Exception as e:
-            print(f"Warning: Ice surface detection failed: {e}")
-            # Return a basic mask covering most of the frame as fallback
-            fallback_mask = np.ones(frame.shape[:2], dtype=np.uint8) * 255
+            print(f"❌ Ice surface detection failed: {e}")
+            # Return a conservative fallback - assume center 40% of frame is ice
+            fallback_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
+            h, w = frame.shape[:2]
+            y1, y2 = int(h * 0.2), int(h * 0.8)
+            x1, x2 = int(w * 0.1), int(w * 0.9)
+            fallback_mask[y1:y2, x1:x2] = 255
+            print("   Using conservative fallback mask (center 60% of frame)")
             self.ice_mask = fallback_mask
             return fallback_mask
     
@@ -206,6 +212,46 @@ class IceDetector:
         cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel_large)
         
         return cleaned
+
+    def expand_ice_from_seed_areas(self, seed_mask, color_mask, max_expansion=80):
+        """
+        Expand ice detection from high-confidence seed areas through white regions
+        
+        Args:
+            seed_mask: High-confidence ice areas (intersection of color + texture)
+            color_mask: All detected white/light areas 
+            max_expansion: Maximum expansion distance in pixels
+        """
+        if np.sum(seed_mask) == 0:
+            print("   ⚠️  No high-confidence ice areas found, using color mask as fallback")
+            return color_mask
+        
+        # Start with seed areas
+        expanded_mask = seed_mask.copy()
+        
+        # Create kernel for expansion
+        kernel_size = 5
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+        
+        # Expand iteratively, but only through white areas
+        iterations = max_expansion // (kernel_size // 2)  # Rough calculation
+        
+        for i in range(iterations):
+            # Dilate current mask
+            dilated = cv2.dilate(expanded_mask, kernel, iterations=1)
+            
+            # Only keep expansion that stays within white areas
+            constrained_expansion = cv2.bitwise_and(dilated, color_mask)
+            
+            # Check if we're still making progress
+            if np.array_equal(constrained_expansion, expanded_mask):
+                print(f"   Expansion converged after {i+1} iterations")
+                break
+                
+            expanded_mask = constrained_expansion
+        
+        print(f"   Expansion completed: {iterations} iterations, kernel size {kernel_size}")
+        return expanded_mask
     
     def is_on_ice(self, position):
         """Check if a position is on the ice surface"""
