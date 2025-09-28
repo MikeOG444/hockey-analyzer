@@ -267,8 +267,8 @@ class IceDetector:
 
     def find_largest_connected_component(self, binary_mask):
         """
-        Find the largest connected component and filter out small disconnected areas
-        Keeps main ice surface, removes small false positives in stands
+        Find ONLY the largest connected component (strict approach)
+        Ice should be one single large connected area - eliminate everything else
         """
         # Find all connected components
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
@@ -287,26 +287,16 @@ class IceDetector:
                 largest_area = area
                 largest_label = i
         
-        # Create filtering criteria
-        # Keep largest component + any component that's at least 5% the size of largest
-        min_component_size = max(largest_area * 0.05, 1000)  # At least 5% of largest or 1000 pixels
+        # ONLY keep the largest component - period. 
+        # The ice surface should be one single large connected area
+        largest_component_mask = np.where(labels == largest_label, 255, 0).astype(np.uint8)
         
-        # Create mask with largest component and any significantly large components
-        filtered_mask = np.zeros_like(labels, dtype=np.uint8)
+        components_removed = num_labels - 2  # Total components minus background and largest
         
-        components_kept = 0
-        for i in range(1, num_labels):
-            area = stats[i, cv2.CC_STAT_AREA]
-            if i == largest_label or area >= min_component_size:
-                filtered_mask[labels == i] = 255
-                components_kept += 1
+        print(f"   Found {num_labels-1} components, kept ONLY the largest ({largest_area} pixels)")
+        print(f"   Removed {components_removed} smaller components (including false positives)")
         
-        small_components_removed = (num_labels - 1) - components_kept
-        
-        print(f"   Found {num_labels-1} components, kept {components_kept}, removed {small_components_removed} small ones")
-        print(f"   Largest component: {largest_area} pixels, minimum size: {min_component_size:.0f} pixels")
-        
-        return filtered_mask
+        return largest_component_mask
     
     def create_plausible_ice_region(self, width, height):
         """
