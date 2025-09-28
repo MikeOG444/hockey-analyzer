@@ -267,8 +267,8 @@ class IceDetector:
 
     def find_largest_connected_component(self, binary_mask):
         """
-        Find the largest connected component in a binary mask
-        This should be the ice surface (largest white area)
+        Find the largest connected component and filter out small disconnected areas
+        Keeps main ice surface, removes small false positives in stands
         """
         # Find all connected components
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
@@ -287,12 +287,26 @@ class IceDetector:
                 largest_area = area
                 largest_label = i
         
-        # Create mask with only the largest component
-        largest_component_mask = np.where(labels == largest_label, 255, 0).astype(np.uint8)
+        # Create filtering criteria
+        # Keep largest component + any component that's at least 5% the size of largest
+        min_component_size = max(largest_area * 0.05, 1000)  # At least 5% of largest or 1000 pixels
         
-        print(f"   Found {num_labels-1} components, largest has {largest_area} pixels")
+        # Create mask with largest component and any significantly large components
+        filtered_mask = np.zeros_like(labels, dtype=np.uint8)
         
-        return largest_component_mask
+        components_kept = 0
+        for i in range(1, num_labels):
+            area = stats[i, cv2.CC_STAT_AREA]
+            if i == largest_label or area >= min_component_size:
+                filtered_mask[labels == i] = 255
+                components_kept += 1
+        
+        small_components_removed = (num_labels - 1) - components_kept
+        
+        print(f"   Found {num_labels-1} components, kept {components_kept}, removed {small_components_removed} small ones")
+        print(f"   Largest component: {largest_area} pixels, minimum size: {min_component_size:.0f} pixels")
+        
+        return filtered_mask
     
     def create_plausible_ice_region(self, width, height):
         """
