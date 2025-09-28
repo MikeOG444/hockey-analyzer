@@ -29,19 +29,19 @@ class IceDetector:
             texture_percentage = (np.sum(ice_mask_texture > 0) / ice_mask_texture.size) * 100
             print(f"   Texture detection: {texture_percentage:.1f}% of frame")
             
-            # NEW APPROACH: Intersection + Geometric Filtering + Expansion
-            # Step 1: Find high-confidence ice (where color AND texture agree)
-            definite_ice = cv2.bitwise_and(ice_mask_color, ice_mask_texture)
-            definite_percentage = (np.sum(definite_ice > 0) / definite_ice.size) * 100
-            print(f"   High-confidence ice (raw): {definite_percentage:.1f}% of frame")
+            # NEW APPROACH: Largest Connected Component (Simple & Logical)
+            # Step 1: Find the largest connected white area (should be ice surface)
+            largest_white_area = self.find_largest_connected_component(ice_mask_color)
+            largest_percentage = (np.sum(largest_white_area > 0) / largest_white_area.size) * 100
+            print(f"   Largest white area: {largest_percentage:.1f}% of frame")
             
-            # Step 2: Filter seeds by geometric constraints (eliminate stands/boards)
-            filtered_seeds = self.filter_seeds_by_ice_geometry(definite_ice, frame.shape)
-            filtered_percentage = (np.sum(filtered_seeds > 0) / filtered_seeds.size) * 100
-            print(f"   After geometric filtering: {filtered_percentage:.1f}% of frame")
+            # Step 2: Refine with texture lines WITHIN the large white area
+            ice_lines_within = cv2.bitwise_and(ice_mask_texture, largest_white_area)
+            lines_percentage = (np.sum(ice_lines_within > 0) / ice_lines_within.size) * 100
+            print(f"   Ice lines within large area: {lines_percentage:.1f}% of frame")
             
-            # Step 3: Expand from filtered seeds through white areas
-            combined_mask = self.expand_ice_from_seed_areas(filtered_seeds, ice_mask_color)
+            # Step 3: Combine - use largest white area as base, enhanced by texture lines
+            combined_mask = cv2.bitwise_or(largest_white_area, ice_lines_within)
             combined_percentage = (np.sum(combined_mask > 0) / combined_mask.size) * 100
             print(f"   After expansion: {combined_percentage:.1f}% of frame")
             
@@ -264,6 +264,35 @@ class IceDetector:
         print(f"   Geometric filter: kept {filtered_seeds_count}, eliminated {eliminated_count} false positives")
         
         return filtered_seeds
+
+    def find_largest_connected_component(self, binary_mask):
+        """
+        Find the largest connected component in a binary mask
+        This should be the ice surface (largest white area)
+        """
+        # Find all connected components
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
+        
+        if num_labels <= 1:  # Only background, no components
+            print("   ⚠️  No connected components found")
+            return binary_mask
+        
+        # Find the largest component (excluding background label 0)
+        largest_label = 1
+        largest_area = stats[1, cv2.CC_STAT_AREA]
+        
+        for i in range(2, num_labels):
+            area = stats[i, cv2.CC_STAT_AREA]
+            if area > largest_area:
+                largest_area = area
+                largest_label = i
+        
+        # Create mask with only the largest component
+        largest_component_mask = np.where(labels == largest_label, 255, 0).astype(np.uint8)
+        
+        print(f"   Found {num_labels-1} components, largest has {largest_area} pixels")
+        
+        return largest_component_mask
     
     def create_plausible_ice_region(self, width, height):
         """
