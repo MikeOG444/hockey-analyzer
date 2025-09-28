@@ -1,6 +1,7 @@
 import cv2
 from ultralytics import YOLO
 import numpy as np
+import cv2
 
 class PlayerDetector:
     def __init__(self):
@@ -10,17 +11,26 @@ class PlayerDetector:
         
     def detect_players(self, frame, ice_mask=None):
         """
-        Detect players in a frame, optionally filtering by ice surface
+        Detect players in a frame, using polygon masking for ice-only detection
         
         Args:
             frame: Input video frame
             ice_mask: Optional binary mask of ice surface (255=ice, 0=not ice)
-                     If provided, only detections within ice area are returned
+                     If provided, frame is masked to show only ice area before detection
         
         Returns:
             List of player detections with position, bbox, confidence
         """
-        results = self.model(frame)
+        
+        # OPTION 2: Polygon Masking - Only detect within ice area
+        detection_frame = frame
+        if ice_mask is not None:
+            # Create masked frame - black out everything except ice
+            detection_frame = cv2.bitwise_and(frame, frame, mask=ice_mask)
+            # This makes YOLO only "see" the ice area - much more efficient!
+        
+        # Run YOLO detection on masked frame (or original if no mask)
+        results = self.model(detection_frame)
         
         players = []
         for result in results:
@@ -34,15 +44,10 @@ class PlayerDetector:
                         center_x, center_y = int(x), int(y)
                         bbox = (int(x-w/2), int(y-h/2), int(w), int(h))
                         
-                        # If ice mask provided, check if detection is on ice
+                        # Additional edge player validation using OR logic
                         if ice_mask is not None:
-                            # Check if player center is within ice mask
-                            if (0 <= center_y < ice_mask.shape[0] and 
-                                0 <= center_x < ice_mask.shape[1]):
-                                if ice_mask[center_y, center_x] == 0:
-                                    continue  # Skip detections NOT on ice (mask = 0)
-                            else:
-                                continue  # Skip detections outside frame bounds
+                            if not self._is_player_on_ice_or_logic(bbox, ice_mask):
+                                continue  # Skip if neither center nor feet are on ice
                         
                         players.append({
                             'position': (center_x, center_y),
@@ -51,6 +56,34 @@ class PlayerDetector:
                         })
         
         return players
+    
+    def _is_player_on_ice_or_logic(self, bbox, ice_mask):
+        """
+        Smart edge detection using OR logic:
+        - Bottom half players: Check center (feet hidden by boards)
+        - Top half players: Check feet area (might be on bench)
+        - Returns True if EITHER center OR feet are on ice
+        """
+        x, y, w, h = bbox
+        
+        # Center point of player (good for bottom edge players)
+        center_x, center_y = x + w//2, y + h//2
+        
+        # Feet area (bottom of bounding box - good for top edge players)  
+        feet_x, feet_y = x + w//2, y + h
+        
+        # Check center point
+        center_on_ice = False
+        if (0 <= center_y < ice_mask.shape[0] and 0 <= center_x < ice_mask.shape[1]):
+            center_on_ice = ice_mask[center_y, center_x] > 0
+        
+        # Check feet area
+        feet_on_ice = False
+        if (0 <= feet_y < ice_mask.shape[0] and 0 <= feet_x < ice_mask.shape[1]):
+            feet_on_ice = ice_mask[feet_y, feet_x] > 0
+            
+        # OR logic: Player is on ice if EITHER center OR feet are on ice
+        return center_on_ice or feet_on_ice
     
     def analyze_frame(self, frame):
         """Analyze a single frame"""

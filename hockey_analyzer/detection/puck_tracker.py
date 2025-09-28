@@ -109,12 +109,12 @@ class PuckTracker:
 
     def detect_puck(self, frame: np.ndarray, players: List[Dict], ice_mask=None) -> Optional[PuckCandidate]:
         """
-        Main puck detection method - returns single best puck or None
+        Main puck detection method using polygon masking for ice-only detection
 
         Args:
             frame: Input video frame  
-            players: List of detected players
-            ice_mask: Optional binary mask of ice surface for filtering
+            players: List of detected players (already filtered by ice)
+            ice_mask: Optional binary mask of ice surface for masking
 
         Hockey reality:
         - Puck is often hidden behind players, sticks, or boards
@@ -123,10 +123,16 @@ class PuckTracker:
         """
         self.frames_since_detection += 1
 
-        # Step 1: Find potential puck candidates (very conservative)
-        candidates = self._find_conservative_candidates(frame)
+        # OPTION 2: Polygon Masking - Only detect puck within ice area
+        detection_frame = frame
+        if ice_mask is not None:
+            # Create masked frame - black out everything except ice
+            detection_frame = cv2.bitwise_and(frame, frame, mask=ice_mask)
 
-        # Step 2: Filter by ice surface (use provided mask or fallback to detector)
+        # Step 1: Find potential puck candidates (very conservative) on masked frame
+        candidates = self._find_conservative_candidates(detection_frame)
+
+        # Step 2: Additional ice validation (belt and suspenders approach)
         if ice_mask is not None:
             candidates = self._filter_by_ice_mask(candidates, ice_mask)
         elif self.ice_detector and self.ice_detector.ice_mask is not None:

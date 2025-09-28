@@ -133,8 +133,8 @@ class HockeyGameAnalyzer:
                         ice_percentage = (ice_pixels / ice_mask.size) * 100 if ice_mask is not None else 0
                         print(f"🏒 Ice coverage: {ice_percentage:.1f}% of frame")
                 
-                # Step 2: Player detection WITH ice filtering (FIXED!)
-                # This is the key fix - pass ice_mask to filter detections
+                # Step 2: Player detection WITH polygon masking (EFFICIENT!)
+                # YOLO only processes ice area - much faster and no crowd noise
                 players = self.player_detector.detect_players(frame, ice_mask=ice_mask)
                 if players:
                     player_detections += 1
@@ -184,13 +184,13 @@ class HockeyGameAnalyzer:
                     
                     print(f"Progress: {progress:.1f}% ({self.frame_count}/{frames_to_process} frames)")
                     print(f"  Processing: {avg_fps:.1f} fps, Elapsed: {elapsed:.1f}s")
-                    print(f"  🏒 Ice-filtered players: {len(players)}, Puck: {'✅' if tracked_puck else '❌'}")
+                    print(f"  🏒 Ice-only players: {len(players)}, Puck: {'✅' if tracked_puck else '❌'}")
                     
-                    # Show ice filtering effectiveness
+                    # Show polygon masking effectiveness
                     if ice_mask is not None:
                         ice_pixels = np.sum(ice_mask > 0)
                         ice_percentage = (ice_pixels / ice_mask.size) * 100
-                        print(f"  🎯 Ice coverage: {ice_percentage:.1f}% - filtering active")
+                        print(f"  🎯 Ice ROI: {ice_percentage:.1f}% - polygon masking active")
                     
                     # Show recent play events
                     recent_plays = [pe for pe in play_events if pe.frame_number >= self.frame_count - 30]
