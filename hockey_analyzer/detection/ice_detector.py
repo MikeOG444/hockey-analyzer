@@ -215,43 +215,94 @@ class IceDetector:
 
     def expand_ice_from_seed_areas(self, seed_mask, color_mask, max_expansion=80):
         """
-        Expand ice detection from high-confidence seed areas through white regions
+        Flood fill expansion from high-confidence seed areas through white regions
+        Respects boundaries and doesn't bridge across non-ice gaps
         
         Args:
             seed_mask: High-confidence ice areas (intersection of color + texture)
             color_mask: All detected white/light areas 
-            max_expansion: Maximum expansion distance in pixels
+            max_expansion: Not used in flood fill (kept for interface compatibility)
         """
         if np.sum(seed_mask) == 0:
             print("   ⚠️  No high-confidence ice areas found, using color mask as fallback")
             return color_mask
         
-        # Start with seed areas
-        expanded_mask = seed_mask.copy()
+        print("   🌊 Using flood fill expansion from seed areas...")
         
-        # Create kernel for expansion
-        kernel_size = 5
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+        # Use flood fill to expand from seeds through white areas only
+        expanded_mask = self.flood_fill_from_seeds(seed_mask, color_mask)
         
-        # Expand iteratively, but only through white areas
-        iterations = max_expansion // (kernel_size // 2)  # Rough calculation
-        
-        for i in range(iterations):
-            # Dilate current mask
-            dilated = cv2.dilate(expanded_mask, kernel, iterations=1)
-            
-            # Only keep expansion that stays within white areas
-            constrained_expansion = cv2.bitwise_and(dilated, color_mask)
-            
-            # Check if we're still making progress
-            if np.array_equal(constrained_expansion, expanded_mask):
-                print(f"   Expansion converged after {i+1} iterations")
-                break
-                
-            expanded_mask = constrained_expansion
-        
-        print(f"   Expansion completed: {iterations} iterations, kernel size {kernel_size}")
         return expanded_mask
+    
+    def flood_fill_from_seeds(self, seed_mask, color_mask):
+        """
+        Flood fill from seed points through continuous white areas
+        Stops at boundaries and doesn't bridge gaps
+        """
+        import cv2
+        import numpy as np
+        
+        # Find all seed points (non-zero pixels in seed mask)
+        seed_points = np.where(seed_mask > 0)
+        num_seeds = len(seed_points[0])
+        print(f"   Found {num_seeds} seed pixels for flood fill")
+        
+        if num_seeds == 0:
+            return seed_mask
+        
+        # Create working masks
+        h, w = seed_mask.shape
+        result_mask = np.zeros((h, w), dtype=np.uint8)
+        
+        # Create a mask that defines floodable areas (white areas from color detection)
+        # We need to invert this for OpenCV floodFill (0 = can fill, non-zero = barrier)
+        flood_barrier = np.where(color_mask > 0, 0, 255).astype(np.uint8)
+        
+        # Track statistics
+        regions_filled = 0
+        total_pixels_filled = 0
+        
+        # Sample seed points (don't flood fill from every single pixel)
+        # Take every Nth seed point to avoid redundant fills
+        step = max(1, num_seeds // 50)  # Max 50 flood fill operations
+        sampled_indices = range(0, num_seeds, step)
+        
+        print(f"   Sampling {len(sampled_indices)} seed points for flood fill")
+        
+        for i in sampled_indices:
+            y, x = seed_points[0][i], seed_points[1][i]
+            
+            # Skip if this point is already filled
+            if result_mask[y, x] > 0:
+                continue
+            
+            # Create a temporary mask for this flood fill operation
+            temp_mask = np.zeros((h + 2, w + 2), dtype=np.uint8)  # Must be 2 pixels larger
+            
+            # Perform flood fill
+            # Start from seed point, fill with value 255, through areas where barrier is 0
+            pixels_filled = cv2.floodFill(
+                result_mask,           # Image to fill
+                temp_mask,            # Mask (must be 2 pixels larger)
+                (x, y),               # Seed point
+                255,                  # Fill value
+                loDiff=(0,),          # Lower difference threshold
+                upDiff=(0,),          # Upper difference threshold  
+                flags=cv2.FLOODFILL_MASK_ONLY | cv2.FLOODFILL_FIXED_RANGE
+            )[0]
+            
+            # Apply barrier constraint: only keep fills that are in white areas
+            before_constraint = np.sum(result_mask > 0)
+            result_mask = cv2.bitwise_and(result_mask, color_mask)
+            after_constraint = np.sum(result_mask > 0)
+            
+            if pixels_filled > 0:
+                regions_filled += 1
+                total_pixels_filled += after_constraint - (before_constraint - pixels_filled)
+        
+        print(f"   Flood fill completed: {regions_filled} regions, {total_pixels_filled} pixels")
+        
+        return result_mask
     
     def is_on_ice(self, position):
         """Check if a position is on the ice surface"""

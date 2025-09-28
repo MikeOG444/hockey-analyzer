@@ -62,7 +62,13 @@ def test_simplified_ice_detection(video_path, frame_number=0):
         # Show the intermediate steps
         intersection_mask = cv2.bitwise_and(color_mask, texture_mask)
         intersection_percentage = (np.sum(intersection_mask > 0) / intersection_mask.size) * 100
-        print(f"   Intersection (high-confidence): {intersection_percentage:.1f}% of frame")
+        print(f"   Intersection (seeds): {intersection_percentage:.1f}% of frame")
+        
+        # Also manually test the flood fill to show intermediate result
+        if intersection_percentage > 0:
+            flood_filled = ice_detector.flood_fill_from_seeds(intersection_mask, color_mask)
+            flood_percentage = (np.sum(flood_filled > 0) / flood_filled.size) * 100
+            print(f"   After flood fill: {flood_percentage:.1f}% of frame")
         
         # Create comparison visualization
         debug_image = create_simplified_debug_visualization(
@@ -135,7 +141,7 @@ def create_simplified_debug_visualization(frame, color_mask, texture_mask, final
         (display_width + 5, 20, "Color Detection"),
         (display_width * 2 + 5, 20, "Texture Detection"),
         (5, display_height + 20, "Intersection (Seeds)"),
-        (display_width + 5, display_height + 20, "Final Expanded"),
+        (display_width + 5, display_height + 20, "Flood Fill Result"),
         (display_width * 2 + 5, display_height + 20, "Ice Overlay")
     ]
     
