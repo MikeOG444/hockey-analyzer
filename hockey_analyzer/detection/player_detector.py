@@ -40,7 +40,7 @@ class PlayerDetector:
                             if (0 <= center_y < ice_mask.shape[0] and 
                                 0 <= center_x < ice_mask.shape[1]):
                                 if ice_mask[center_y, center_x] == 0:
-                                    continue  # Skip detections not on ice
+                                    continue  # Skip detections NOT on ice (mask = 0)
                             else:
                                 continue  # Skip detections outside frame bounds
                         
