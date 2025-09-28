@@ -42,6 +42,66 @@ class PuckTracker:
         self.max_velocity = 200  # Max pixels per frame for very fast puck
         self.lost_puck_frames = 0
 
+    def detect_puck_candidates(self, frame: np.ndarray, players: List[Dict]) -> List[PuckCandidate]:
+        """
+        Detect potential puck locations - returns list of candidates for compatibility
+        
+        This method maintains compatibility with the GameAnalyzer interface
+        """
+        puck = self.detect_puck(frame, players)
+        return [puck] if puck is not None else []
+
+    def track_puck(self, candidates: List[PuckCandidate]) -> Optional[PuckCandidate]:
+        """
+        Track puck across frames using temporal consistency
+        
+        Maintains compatibility with GameAnalyzer interface
+        """
+        if not candidates:
+            return self._predict_puck_position()
+        
+        best_candidate = None
+        
+        if self.puck_history:
+            # Use tracking history to select best candidate
+            last_position = self.puck_history[-1].position
+            
+            # Find candidate closest to predicted position
+            min_distance = float('inf')
+            for candidate in candidates:
+                distance = math.sqrt(
+                    (candidate.position[0] - last_position[0])**2 +
+                    (candidate.position[1] - last_position[1])**2
+                )
+                
+                # Consider both distance and confidence
+                score = candidate.confidence - (distance / 100.0)
+                
+                if distance < self.max_velocity and score > (best_candidate.confidence if best_candidate else 0):
+                    best_candidate = candidate
+                    min_distance = distance
+                    
+            # If no good temporal match, take highest confidence
+            if best_candidate is None and candidates:
+                best_candidate = max(candidates, key=lambda c: c.confidence)
+        else:
+            # No history, take highest confidence candidate
+            best_candidate = max(candidates, key=lambda c: c.confidence) if candidates else None
+        
+        # Update puck history
+        if best_candidate:
+            # Calculate velocity if we have history
+            if self.puck_history:
+                last_pos = self.puck_history[-1].position
+                dt = 1.0 / 30.0  # Assume 30fps
+                vx = (best_candidate.position[0] - last_pos[0]) / dt
+                vy = (best_candidate.position[1] - last_pos[1]) / dt
+                best_candidate.velocity = (vx, vy)
+            
+            self.puck_history.append(best_candidate)
+        
+        return best_candidate
+
     def detect_puck(self, frame: np.ndarray, players: List[Dict]) -> Optional[PuckCandidate]:
         """
         Main puck detection method - returns single best puck or None
