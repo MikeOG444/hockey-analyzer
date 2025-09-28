@@ -109,6 +109,10 @@ class HockeyGameAnalyzer:
         team_confidences = []
         processing_times = []
         
+        # Ice detection cache - detect once and reuse
+        ice_mask = None
+        ice_detection_interval = 30  # Frames between ice re-detection
+        
         self.start_time = time.time()
         
         try:
@@ -120,14 +124,18 @@ class HockeyGameAnalyzer:
                 frame_start_time = time.time()
                 timestamp = self.frame_count / fps
                 
-                # Step 1: Ice surface detection (every 30 frames for performance)
-                if self.frame_count % 30 == 0:
+                # Step 1: Ice surface detection (cache and reuse for performance)
+                if self.frame_count % ice_detection_interval == 0:
                     ice_mask = self.ice_detector.detect_ice_surface(frame)
                     if self.frame_count == 0:
                         print("✅ Initial ice surface detection completed")
+                        ice_pixels = np.sum(ice_mask > 0) if ice_mask is not None else 0
+                        ice_percentage = (ice_pixels / ice_mask.size) * 100 if ice_mask is not None else 0
+                        print(f"🏒 Ice coverage: {ice_percentage:.1f}% of frame")
                 
-                # Step 2: Player detection
-                players = self.player_detector.detect_players(frame)
+                # Step 2: Player detection WITH ice filtering (FIXED!)
+                # This is the key fix - pass ice_mask to filter detections
+                players = self.player_detector.detect_players(frame, ice_mask=ice_mask)
                 if players:
                     player_detections += 1
                 
@@ -140,8 +148,8 @@ class HockeyGameAnalyzer:
                 # Step 4: Referee detection
                 referees = self.referee_detector.detect_referees(frame, players)
                 
-                # Step 5: Puck tracking
-                puck_candidates = self.puck_tracker.detect_puck_candidates(frame, players)
+                # Step 5: Puck tracking (with ice mask filtering)
+                puck_candidates = self.puck_tracker.detect_puck_candidates(frame, players, ice_mask=ice_mask)
                 tracked_puck = self.puck_tracker.track_puck(puck_candidates)
                 if tracked_puck:
                     puck_detections += 1
@@ -176,7 +184,13 @@ class HockeyGameAnalyzer:
                     
                     print(f"Progress: {progress:.1f}% ({self.frame_count}/{frames_to_process} frames)")
                     print(f"  Processing: {avg_fps:.1f} fps, Elapsed: {elapsed:.1f}s")
-                    print(f"  Players: {len(players)}, Puck: {'✅' if tracked_puck else '❌'}")
+                    print(f"  🏒 Ice-filtered players: {len(players)}, Puck: {'✅' if tracked_puck else '❌'}")
+                    
+                    # Show ice filtering effectiveness
+                    if ice_mask is not None:
+                        ice_pixels = np.sum(ice_mask > 0)
+                        ice_percentage = (ice_pixels / ice_mask.size) * 100
+                        print(f"  🎯 Ice coverage: {ice_percentage:.1f}% - filtering active")
                     
                     # Show recent play events
                     recent_plays = [pe for pe in play_events if pe.frame_number >= self.frame_count - 30]

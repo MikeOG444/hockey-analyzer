@@ -42,13 +42,18 @@ class PuckTracker:
         self.max_velocity = 200  # Max pixels per frame for very fast puck
         self.lost_puck_frames = 0
 
-    def detect_puck_candidates(self, frame: np.ndarray, players: List[Dict]) -> List[PuckCandidate]:
+    def detect_puck_candidates(self, frame: np.ndarray, players: List[Dict], ice_mask=None) -> List[PuckCandidate]:
         """
         Detect potential puck locations - returns list of candidates for compatibility
         
+        Args:
+            frame: Input video frame
+            players: List of detected players (already filtered by ice if mask was used)
+            ice_mask: Optional binary mask of ice surface for additional filtering
+        
         This method maintains compatibility with the GameAnalyzer interface
         """
-        puck = self.detect_puck(frame, players)
+        puck = self.detect_puck(frame, players, ice_mask=ice_mask)
         return [puck] if puck is not None else []
 
     def track_puck(self, candidates: List[PuckCandidate]) -> Optional[PuckCandidate]:
@@ -102,9 +107,14 @@ class PuckTracker:
         
         return best_candidate
 
-    def detect_puck(self, frame: np.ndarray, players: List[Dict]) -> Optional[PuckCandidate]:
+    def detect_puck(self, frame: np.ndarray, players: List[Dict], ice_mask=None) -> Optional[PuckCandidate]:
         """
         Main puck detection method - returns single best puck or None
+
+        Args:
+            frame: Input video frame  
+            players: List of detected players
+            ice_mask: Optional binary mask of ice surface for filtering
 
         Hockey reality:
         - Puck is often hidden behind players, sticks, or boards
@@ -116,8 +126,10 @@ class PuckTracker:
         # Step 1: Find potential puck candidates (very conservative)
         candidates = self._find_conservative_candidates(frame)
 
-        # Step 2: Filter by ice surface
-        if self.ice_detector and self.ice_detector.ice_mask is not None:
+        # Step 2: Filter by ice surface (use provided mask or fallback to detector)
+        if ice_mask is not None:
+            candidates = self._filter_by_ice_mask(candidates, ice_mask)
+        elif self.ice_detector and self.ice_detector.ice_mask is not None:
             candidates = self._filter_by_ice_surface(candidates)
 
         # Step 3: Apply hockey constraints
@@ -272,6 +284,17 @@ class PuckTracker:
         for candidate in candidates:
             if self.ice_detector.is_on_ice(candidate.position):
                 filtered.append(candidate)
+        return filtered
+
+    def _filter_by_ice_mask(self, candidates: List[PuckCandidate], ice_mask: np.ndarray) -> List[PuckCandidate]:
+        """Filter candidates to only those on the ice surface using provided mask"""
+        filtered = []
+        for candidate in candidates:
+            x, y = candidate.position
+            # Check if candidate position is within ice mask bounds and on ice
+            if (0 <= y < ice_mask.shape[0] and 0 <= x < ice_mask.shape[1]):
+                if ice_mask[y, x] > 0:  # On ice surface
+                    filtered.append(candidate)
         return filtered
 
     def _apply_hockey_constraints(self, candidates: List[PuckCandidate]) -> List[PuckCandidate]:
