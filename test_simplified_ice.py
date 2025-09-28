@@ -64,9 +64,15 @@ def test_simplified_ice_detection(video_path, frame_number=0):
         intersection_percentage = (np.sum(intersection_mask > 0) / intersection_mask.size) * 100
         print(f"   Intersection (seeds): {intersection_percentage:.1f}% of frame")
         
-        # Also manually test the flood fill to show intermediate result
+        # Test geometric filtering
         if intersection_percentage > 0:
-            flood_filled = ice_detector.flood_fill_from_seeds(intersection_mask, color_mask)
+            # Test geometric filtering step
+            filtered_seeds = ice_detector.filter_seeds_by_ice_geometry(intersection_mask, frame.shape)
+            filtered_percentage = (np.sum(filtered_seeds > 0) / filtered_seeds.size) * 100
+            print(f"   After geometric filtering: {filtered_percentage:.1f}% of frame")
+            
+            # Test flood fill from filtered seeds
+            flood_filled = ice_detector.flood_fill_from_seeds(filtered_seeds, color_mask)
             flood_percentage = (np.sum(flood_filled > 0) / flood_filled.size) * 100
             print(f"   After flood fill: {flood_percentage:.1f}% of frame")
         
@@ -93,13 +99,14 @@ def test_simplified_ice_detection(video_path, frame_number=0):
         return False
 
 def create_simplified_debug_visualization(frame, color_mask, texture_mask, final_mask):
-    """Create debug visualization showing the intersection + expansion approach"""
+    """Create debug visualization showing intersection + geometric filtering + flood fill"""
     
     import cv2
     import numpy as np
+    from hockey_analyzer.detection.ice_detector import IceDetector
     
     # Resize for display
-    display_height = 250
+    display_height = 200
     aspect_ratio = frame.shape[1] / frame.shape[0]
     display_width = int(display_height * aspect_ratio)
     
@@ -109,13 +116,22 @@ def create_simplified_debug_visualization(frame, color_mask, texture_mask, final
     texture_small = cv2.resize(texture_mask, (display_width, display_height))
     final_small = cv2.resize(final_mask, (display_width, display_height))
     
-    # Calculate intersection (high-confidence ice)
+    # Calculate intermediate steps
     intersection = cv2.bitwise_and(color_small, texture_small)
+    
+    # Create geometric region for visualization
+    ice_detector = IceDetector()
+    geometric_region = ice_detector.create_plausible_ice_region(display_width, display_height)
+    
+    # Apply geometric filtering
+    filtered_seeds = cv2.bitwise_and(intersection, geometric_region)
     
     # Create colored visualizations
     color_vis = cv2.applyColorMap(color_small, cv2.COLORMAP_HOT)
     texture_vis = cv2.applyColorMap(texture_small, cv2.COLORMAP_COOL)
     intersection_vis = cv2.applyColorMap(intersection, cv2.COLORMAP_WINTER)
+    geometric_vis = cv2.applyColorMap(geometric_region, cv2.COLORMAP_RAINBOW)
+    filtered_vis = cv2.applyColorMap(filtered_seeds, cv2.COLORMAP_SPRING)
     final_vis = cv2.applyColorMap(final_small, cv2.COLORMAP_VIRIDIS)
     
     # Create overlay showing final mask on original
@@ -124,29 +140,31 @@ def create_simplified_debug_visualization(frame, color_mask, texture_mask, final
     mask_colored[:, :, 1] = final_small  # Green channel for ice
     overlay = cv2.addWeighted(overlay, 0.6, mask_colored, 0.4, 0)
     
-    # Create 3x2 grid to show the process
-    top_row = np.hstack([frame_small, color_vis, texture_vis])
-    bottom_row = np.hstack([intersection_vis, final_vis, overlay])
+    # Create 4x2 grid to show all steps
+    top_row = np.hstack([frame_small, color_vis, texture_vis, intersection_vis])
+    bottom_row = np.hstack([geometric_vis, filtered_vis, final_vis, overlay])
     
     debug_grid = np.vstack([top_row, bottom_row])
     
     # Add labels
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.4
-    color = (255, 255, 255)
+    font_scale = 0.3
+    color_white = (255, 255, 255)
     thickness = 1
     
     labels = [
-        (5, 20, "Original Frame"),
-        (display_width + 5, 20, "Color Detection"),
-        (display_width * 2 + 5, 20, "Texture Detection"),
-        (5, display_height + 20, "Intersection (Seeds)"),
-        (display_width + 5, display_height + 20, "Flood Fill Result"),
-        (display_width * 2 + 5, display_height + 20, "Ice Overlay")
+        (5, 15, "Original"),
+        (display_width + 5, 15, "Color"),
+        (display_width * 2 + 5, 15, "Texture"),
+        (display_width * 3 + 5, 15, "Intersection"),
+        (5, display_height + 15, "Geo Region"),
+        (display_width + 5, display_height + 15, "Filtered Seeds"),
+        (display_width * 2 + 5, display_height + 15, "Final Result"),
+        (display_width * 3 + 5, display_height + 15, "Ice Overlay")
     ]
     
     for x, y, text in labels:
-        cv2.putText(debug_grid, text, (x, y), font, font_scale, color, thickness)
+        cv2.putText(debug_grid, text, (x, y), font, font_scale, color_white, thickness)
     
     return debug_grid
 

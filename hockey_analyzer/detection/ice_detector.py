@@ -29,14 +29,19 @@ class IceDetector:
             texture_percentage = (np.sum(ice_mask_texture > 0) / ice_mask_texture.size) * 100
             print(f"   Texture detection: {texture_percentage:.1f}% of frame")
             
-            # NEW APPROACH: Intersection + Expansion
+            # NEW APPROACH: Intersection + Geometric Filtering + Expansion
             # Step 1: Find high-confidence ice (where color AND texture agree)
             definite_ice = cv2.bitwise_and(ice_mask_color, ice_mask_texture)
             definite_percentage = (np.sum(definite_ice > 0) / definite_ice.size) * 100
-            print(f"   High-confidence ice: {definite_percentage:.1f}% of frame")
+            print(f"   High-confidence ice (raw): {definite_percentage:.1f}% of frame")
             
-            # Step 2: Expand from high-confidence areas through white areas
-            combined_mask = self.expand_ice_from_seed_areas(definite_ice, ice_mask_color)
+            # Step 2: Filter seeds by geometric constraints (eliminate stands/boards)
+            filtered_seeds = self.filter_seeds_by_ice_geometry(definite_ice, frame.shape)
+            filtered_percentage = (np.sum(filtered_seeds > 0) / filtered_seeds.size) * 100
+            print(f"   After geometric filtering: {filtered_percentage:.1f}% of frame")
+            
+            # Step 3: Expand from filtered seeds through white areas
+            combined_mask = self.expand_ice_from_seed_areas(filtered_seeds, ice_mask_color)
             combined_percentage = (np.sum(combined_mask > 0) / combined_mask.size) * 100
             print(f"   After expansion: {combined_percentage:.1f}% of frame")
             
@@ -233,6 +238,68 @@ class IceDetector:
         expanded_mask = self.flood_fill_from_seeds(seed_mask, color_mask)
         
         return expanded_mask
+
+    def filter_seeds_by_ice_geometry(self, intersection_mask, frame_shape):
+        """
+        Filter intersection seeds to only include those in geometrically plausible ice locations
+        Eliminates false positives in stands, boards, and other non-ice areas
+        
+        Args:
+            intersection_mask: Raw intersection of color + texture detection
+            frame_shape: (height, width, channels) of original frame
+        """
+        h, w = frame_shape[:2]
+        
+        # Create plausible ice region mask
+        ice_region_mask = self.create_plausible_ice_region(w, h)
+        
+        # Filter intersection seeds to only include those in plausible locations
+        filtered_seeds = cv2.bitwise_and(intersection_mask, ice_region_mask)
+        
+        # Statistics
+        original_seeds = np.sum(intersection_mask > 0)
+        filtered_seeds_count = np.sum(filtered_seeds > 0)
+        eliminated_count = original_seeds - filtered_seeds_count
+        
+        print(f"   Geometric filter: kept {filtered_seeds_count}, eliminated {eliminated_count} false positives")
+        
+        return filtered_seeds
+    
+    def create_plausible_ice_region(self, width, height):
+        """
+        Create mask for where ice is geometrically expected to be in a hockey arena
+        Based on typical camera angles and rink positioning
+        """
+        mask = np.zeros((height, width), dtype=np.uint8)
+        
+        # Ice surface is typically:
+        # - Centered horizontally and slightly lower vertically (camera angle)
+        # - Takes up about 60-75% of frame width  
+        # - Takes up about 40-60% of frame height
+        # - Roughly elliptical shape due to perspective
+        
+        center_x = width // 2
+        center_y = int(height * 0.55)  # Slightly below center due to camera angle
+        
+        # Ice dimensions (conservative to avoid cutting off real ice)
+        ice_width = int(width * 0.75)   # 75% of frame width
+        ice_height = int(height * 0.50)  # 50% of frame height
+        
+        # Create elliptical region (more realistic than rectangle)
+        cv2.ellipse(mask, 
+                   (center_x, center_y),           # Center point
+                   (ice_width // 2, ice_height // 2),  # Radii
+                   0,                              # Rotation angle
+                   0, 360,                         # Start/end angles (full ellipse)
+                   255,                            # Fill color
+                   -1)                             # Filled
+        
+        # Optional: Add some padding around the ellipse for safety
+        # Dilate slightly to ensure we don't cut off real ice edges
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20, 20))
+        mask = cv2.dilate(mask, kernel, iterations=1)
+        
+        return mask
     
     def flood_fill_from_seeds(self, seed_mask, color_mask):
         """
