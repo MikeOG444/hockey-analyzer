@@ -116,22 +116,30 @@ def create_simplified_debug_visualization(frame, color_mask, texture_mask, final
     texture_small = cv2.resize(texture_mask, (display_width, display_height))
     final_small = cv2.resize(final_mask, (display_width, display_height))
     
-    # Calculate intermediate steps
-    intersection = cv2.bitwise_and(color_small, texture_small)
-    
-    # Create geometric region for visualization
+    # Calculate intermediate steps for new approach
     ice_detector = IceDetector()
-    geometric_region = ice_detector.create_plausible_ice_region(display_width, display_height)
     
-    # Apply geometric filtering
-    filtered_seeds = cv2.bitwise_and(intersection, geometric_region)
+    # Step 1: Largest connected component
+    largest_white = ice_detector.find_largest_connected_component(color_small)
     
-    # Create colored visualizations
+    # Step 2: Lines within largest area
+    lines_within = cv2.bitwise_and(texture_small, largest_white)
+    
+    # Step 3: Boundary mask
+    boundary_mask = ice_detector.create_ice_boundary_mask(largest_white)
+    
+    # Step 4: Final result with boundary constraint
+    boundary_constrained = cv2.bitwise_and(
+        cv2.bitwise_or(largest_white, lines_within), 
+        boundary_mask
+    )
+    
+    # Create colored visualizations for new approach
     color_vis = cv2.applyColorMap(color_small, cv2.COLORMAP_HOT)
     texture_vis = cv2.applyColorMap(texture_small, cv2.COLORMAP_COOL)
-    intersection_vis = cv2.applyColorMap(intersection, cv2.COLORMAP_WINTER)
-    geometric_vis = cv2.applyColorMap(geometric_region, cv2.COLORMAP_RAINBOW)
-    filtered_vis = cv2.applyColorMap(filtered_seeds, cv2.COLORMAP_SPRING)
+    largest_vis = cv2.applyColorMap(largest_white, cv2.COLORMAP_WINTER)
+    lines_vis = cv2.applyColorMap(lines_within, cv2.COLORMAP_SPRING)
+    boundary_vis = cv2.applyColorMap(boundary_mask, cv2.COLORMAP_RAINBOW)
     final_vis = cv2.applyColorMap(final_small, cv2.COLORMAP_VIRIDIS)
     
     # Create overlay showing final mask on original
@@ -140,11 +148,12 @@ def create_simplified_debug_visualization(frame, color_mask, texture_mask, final
     mask_colored[:, :, 1] = final_small  # Green channel for ice
     overlay = cv2.addWeighted(overlay, 0.6, mask_colored, 0.4, 0)
     
-    # Create 4x2 grid to show all steps
-    top_row = np.hstack([frame_small, color_vis, texture_vis, intersection_vis])
-    bottom_row = np.hstack([geometric_vis, filtered_vis, final_vis, overlay])
+    # Create 3x2 grid to show the boundary approach
+    top_row = np.hstack([frame_small, color_vis, texture_vis])
+    middle_row = np.hstack([largest_vis, lines_vis, boundary_vis]) 
+    bottom_row = np.hstack([final_vis, overlay, np.zeros_like(overlay)])
     
-    debug_grid = np.vstack([top_row, bottom_row])
+    debug_grid = np.vstack([top_row, middle_row, bottom_row])
     
     # Add labels
     font = cv2.FONT_HERSHEY_SIMPLEX

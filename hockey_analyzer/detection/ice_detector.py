@@ -40,8 +40,16 @@ class IceDetector:
             lines_percentage = (np.sum(ice_lines_within > 0) / ice_lines_within.size) * 100
             print(f"   Ice lines within large area: {lines_percentage:.1f}% of frame")
             
-            # Step 3: Combine - use largest white area as base, enhanced by texture lines
-            combined_mask = cv2.bitwise_or(largest_white_area, ice_lines_within)
+            # Step 3: Create boundary mask from largest component (eliminate outliers)
+            boundary_mask = self.create_ice_boundary_mask(largest_white_area)
+            boundary_percentage = (np.sum(boundary_mask > 0) / boundary_mask.size) * 100
+            print(f"   Ice boundary mask: {boundary_percentage:.1f}% of frame")
+            
+            # Step 4: Apply boundary constraint to final result
+            combined_mask = cv2.bitwise_and(
+                cv2.bitwise_or(largest_white_area, ice_lines_within), 
+                boundary_mask
+            )
             combined_percentage = (np.sum(combined_mask > 0) / combined_mask.size) * 100
             print(f"   After expansion: {combined_percentage:.1f}% of frame")
             
@@ -297,6 +305,41 @@ class IceDetector:
         print(f"   Removed {components_removed} smaller components (including false positives)")
         
         return largest_component_mask
+
+    def create_ice_boundary_mask(self, largest_component):
+        """
+        Create boundary mask using convex hull of ice surface
+        This eliminates any areas outside the natural ice boundary (boards)
+        """
+        # Find contour of the largest component (ice surface)
+        contours, _ = cv2.findContours(largest_component, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if not contours:
+            print("   ⚠️  No contours found for boundary mask")
+            return largest_component
+        
+        # Get the largest contour (should be the ice boundary)
+        largest_contour = max(contours, key=cv2.contourArea)
+        
+        # Create convex hull for smooth boundary
+        hull = cv2.convexHull(largest_contour)
+        
+        # Create mask from convex hull
+        boundary_mask = np.zeros_like(largest_component)
+        cv2.fillPoly(boundary_mask, [hull], 255)
+        
+        # Optional: Slightly dilate the boundary to ensure we don't cut off real ice
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
+        boundary_mask = cv2.dilate(boundary_mask, kernel, iterations=1)
+        
+        # Statistics
+        original_area = np.sum(largest_component > 0)
+        boundary_area = np.sum(boundary_mask > 0)
+        
+        print(f"   Convex hull boundary: {len(hull)} points, area {boundary_area} pixels")
+        print(f"   Boundary vs original: {boundary_area/original_area:.2f}x size")
+        
+        return boundary_mask
     
     def create_plausible_ice_region(self, width, height):
         """
