@@ -9,12 +9,12 @@ import argparse
 import time
 
 # Import our components
-from src.detection.basic_detector import BasicHockeyDetector
-from src.detection.ice_detection import IceSurfaceDetector
-from src.detection.puck_tracker import PuckTracker
-from src.analysis.team_identifier import TeamIdentifier, RefereeDetector
-from src.analysis.play_analyzer import PlayAnalyzer, PlayEvent
-from calibration import HockeyRinkCalibrator
+from ..detection.player_detector import PlayerDetector
+from ..detection.ice_detector import IceDetector
+from ..detection.puck_tracker import PuckTracker
+from .team_identifier import TeamIdentifier, RefereeDetector
+from .play_analyzer import PlayAnalyzer, PlayEvent
+from ..calibration.rink_calibrator import HockeyRinkCalibrator
 
 @dataclass
 class GameStats:
@@ -51,8 +51,8 @@ class HockeyGameAnalyzer:
         
         # Initialize all components
         print("🏒 Initializing Hockey Game Analyzer...")
-        self.player_detector = BasicHockeyDetector()
-        self.ice_detector = IceSurfaceDetector()  
+        self.player_detector = PlayerDetector()
+        self.ice_detector = IceDetector()  
         self.puck_tracker = PuckTracker(ice_detector=self.ice_detector)
         self.team_identifier = TeamIdentifier(expected_teams=2)
         self.referee_detector = RefereeDetector()

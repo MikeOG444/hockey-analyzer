@@ -15,10 +15,8 @@ from pathlib import Path
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from hockey_analyzer.analysis.game_analyzer import HockeyGameAnalyzer
-from hockey_analyzer.calibration.rink_calibrator import HockeyRinkCalibrator
-from hockey_analyzer.ui.dashboard import CoachingDashboard
-from hockey_analyzer.config.settings import config
+# Lazy imports to avoid loading heavy dependencies at startup
+# Imports are done in functions when needed
 
 def main():
     """Main CLI entry point"""
@@ -94,6 +92,10 @@ Examples:
 
 def analyze_video(args):
     """Analyze hockey game video"""
+    # Import heavy dependencies only when needed
+    from .analysis.game_analyzer import HockeyGameAnalyzer
+    from .config.settings import config
+    
     video_path = Path(args.video)
     if not video_path.exists():
         print(f"Error: Video file not found: {video_path}")
@@ -117,6 +119,10 @@ def analyze_video(args):
 
 def calibrate_rink(args):
     """Calibrate rink measurements"""
+    # Import only when needed
+    from .calibration.rink_calibrator import HockeyRinkCalibrator
+    import json
+    
     video_path = Path(args.video)
     if not video_path.exists():
         print(f"Error: Video file not found: {video_path}")
@@ -136,7 +142,6 @@ def calibrate_rink(args):
         calibration_data = calibrator.auto_calibrate(str(video_path))
         output_path = Path(args.output)
         
-        import json
         with open(output_path, 'w') as f:
             json.dump(calibration_data, f, indent=2)
         
@@ -146,13 +151,12 @@ def calibrate_rink(args):
 
 def launch_dashboard(args):
     """Launch coaching dashboard"""
-    print(f"Launching dashboard on {args.host}:{args.port}")
-    
-    # This would launch Streamlit
     import subprocess
     import sys
     
-    dashboard_path = Path(__file__).parent / "hockey_analyzer" / "ui" / "dashboard.py"
+    print(f"Launching dashboard on {args.host}:{args.port}")
+    
+    dashboard_path = Path(__file__).parent / "ui" / "dashboard.py"
     cmd = [
         sys.executable, "-m", "streamlit", "run", 
         str(dashboard_path),

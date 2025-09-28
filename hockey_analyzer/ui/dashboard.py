@@ -11,7 +11,7 @@ import os
 from typing import Dict, List
 
 # Import our analysis components for live analysis
-from game_analyzer import HockeyGameAnalyzer
+from ..analysis.game_analyzer import HockeyGameAnalyzer
 
 class CoachingDashboard:
     """Streamlit-based coaching dashboard for hockey game analysis"""
