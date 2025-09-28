@@ -10,12 +10,13 @@ A comprehensive hockey video analysis system that uses computer vision and YOLO 
 - **Game Analytics**: Analyze player positions, movements, and generate game statistics
 - **Zone Detection**: Identify offensive, defensive, and neutral zones using blue line detection
 - **Debug Visualization**: Comprehensive debug tools with automatic image generation
+- **Coaching Dashboard**: Streamlit-based web interface for viewing analysis results
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.12 or higher
+- Python 3.8 or higher
 - Git
 - Sufficient disk space for YOLO models (~170MB) and test videos
 
@@ -27,134 +28,127 @@ A comprehensive hockey video analysis system that uses computer vision and YOLO 
    cd hockey-analyzer
    ```
 
-2. **Set up virtual environment**
+2. **Install the package**
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On macOS/Linux
-   # or
-   venv\Scripts\activate     # On Windows
-   ```
-
-3. **Install dependencies**
-   ```bash
+   # Install in development mode
+   pip install -e .
+   
+   # Or install from requirements.txt
    pip install -r requirements.txt
    ```
 
-4. **Download YOLO models**
+3. **Download YOLO models**
    ```bash
-   # Download the required YOLO models (they will auto-download on first use)
-   # Or manually download from: https://github.com/ultralytics/assets/releases/
-   # Place the following files in the project root:
+   # Models will auto-download on first use, or download manually:
+   # Place in the models/ directory:
    # - yolov8n.pt (6MB, fastest)
    # - yolov8s.pt (22MB, balanced) 
    # - yolov8m.pt (52MB, accurate)
    # - yolov8l.pt (88MB, most accurate)
    ```
 
-5. **Verify installation**
-   ```bash
-   python test_video_analysis.py
-   ```
-
 ### First Run
 
-The system will automatically download YOLO models on first use. Test with a basic detection:
-
 ```bash
-# Test basic player detection (requires test video in data/test_videos/)
-python test_video_analysis.py
+# Analyze a hockey game video
+python cli.py analyze data/test_videos/your_game.mp4
 
-# Test ice surface detection
-python test_ice_markings.py
+# Or use the module directly
+python -m hockey_analyzer analyze data/test_videos/your_game.mp4
 
-# Run full system test
-python test_full_system.py
+# Launch the coaching dashboard
+python cli.py dashboard
+
+# Calibrate rink measurements
+python cli.py calibrate data/test_videos/your_game.mp4
 ```
 
 ## 📁 Project Structure
 
 ```
 hockey-analyzer/
-├── src/                          # Source code modules
-│   ├── detection/               # Object detection algorithms
-│   │   ├── basic_detector.py    # Core YOLO player detection
-│   │   ├── ice_detection.py     # Ice surface detection
-│   │   ├── puck_tracker.py      # Puck tracking
-│   │   └── realistic_puck_tracker.py
-│   ├── analysis/                # Game analysis modules
-│   │   ├── team_identifier.py   # Team identification
-│   │   └── play_analyzer.py     # Play analysis
-│   └── ui/                      # UI components (future)
-├── data/                        # Test data and videos
-│   └── test_videos/            # Place your MP4 files here
-├── test_*.py                    # Individual feature tests
-├── debug_*.py                   # Debug utilities
-├── game_analyzer.py            # Main application entry point
-├── coaching_dashboard.py       # Streamlit dashboard
-├── calibration.py              # Rink calibration utility
-├── requirements.txt            # Python dependencies
-└── yolov8*.pt                  # YOLO model files (auto-downloaded)
+├── hockey_analyzer/                 # Main package
+│   ├── __init__.py                 # Package initialization
+│   ├── __main__.py                 # CLI entry point
+│   ├── config/                     # Configuration management
+│   │   ├── __init__.py
+│   │   └── settings.py             # Global settings and configuration
+│   ├── detection/                  # Object detection modules
+│   │   ├── __init__.py
+│   │   ├── player_detector.py      # YOLO player detection
+│   │   ├── ice_detector.py         # Ice surface detection
+│   │   └── puck_tracker.py         # Puck tracking
+│   ├── analysis/                   # Game analysis modules
+│   │   ├── __init__.py
+│   │   ├── team_identifier.py      # Team identification
+│   │   ├── play_analyzer.py        # Play analysis
+│   │   └── game_analyzer.py        # Main game analysis
+│   ├── calibration/                # Calibration modules
+│   │   ├── __init__.py
+│   │   └── rink_calibrator.py      # Rink calibration
+│   ├── ui/                         # User interface
+│   │   ├── __init__.py
+│   │   └── dashboard.py            # Streamlit dashboard
+│   └── utils/                      # Utility modules
+│       └── __init__.py
+├── tests/                          # Organized test suite
+│   ├── detection/                  # Detection module tests
+│   ├── analysis/                   # Analysis module tests
+│   ├── integration/                # End-to-end tests
+│   ├── utils/                      # Utility tests
+│   └── fixtures/                   # Test data and fixtures
+├── scripts/                        # Debug and utility scripts
+├── data/                           # Input data
+│   └── test_videos/               # Test video files
+├── models/                         # YOLO model files
+├── output/                         # Analysis results
+├── docs/                           # Documentation
+├── cli.py                          # Command-line interface
+├── setup.py                       # Package setup
+├── requirements.txt               # Python dependencies
+└── README.md                      # This file
 ```
 
-## 🧪 Testing & Development
+## 🎮 Usage
 
-### Core Tests
+### Command Line Interface
+
+The main interface is through the CLI:
+
 ```bash
-# Basic functionality
-python test_video_analysis.py              # Video processing pipeline
-python test_model_comparison.py            # Compare YOLO models
-python test_ice_markings.py               # Ice detection algorithms
+# Basic analysis
+python cli.py analyze path/to/video.mp4
 
-# Advanced features
-python test_puck_tracking.py              # Puck tracking
-python test_team_identification.py        # Player/team identification
-python test_realistic_analysis.py         # End-to-end analysis
+# Advanced analysis with options
+python cli.py analyze path/to/video.mp4 \
+    --model yolov8l.pt \
+    --confidence 0.5 \
+    --output my_analysis \
+    --debug
+
+# Calibration
+python cli.py calibrate path/to/video.mp4 --interactive
+
+# Dashboard
+python cli.py dashboard --port 8501
 ```
 
-### Ice Detection Tests
-```bash
-python test_brightness_boundary_detection.py    # Boundary detection
-python test_adjacent_ice_expansion.py           # Ice mask refinement
-python test_edge_based_ice_mask.py              # Edge-based detection
+### Python API
+
+```python
+from hockey_analyzer import GameAnalyzer, PlayerDetector, IceDetector
+
+# Initialize components
+detector = PlayerDetector(model_name="yolov8n.pt")
+ice_detector = IceDetector()
+analyzer = GameAnalyzer()
+
+# Analyze a video
+result = analyzer.analyze_game("path/to/video.mp4")
+print(f"Detected {len(result.play_events)} play events")
 ```
-
-### Debug Tools
-```bash
-python debug_detection.py                 # Debug object detection issues
-python debug_medium_model.py             # Test different YOLO models
-python debug_referee_detection_fixed.py  # Referee detection debugging
-```
-
-### Debug Output
-
-Tests automatically generate debug images in `debug_*_images/` directories:
-- `debug_images/` - General debug outputs
-- `debug_test_*_images/` - Test-specific visualizations
-- `full_system_test_output/` - Complete system analysis results
-
-## 🎮 Main Applications
-
-### Game Analyzer
-```bash
-python game_analyzer.py
-```
-Core analysis engine for processing hockey videos and generating statistics.
-
-### Coaching Dashboard
-```bash
-python coaching_dashboard.py
-```
-Streamlit-based web interface for viewing analysis results (future feature).
-
-### Calibration Tool
-```bash
-python calibration.py
-```
-Manual calibration utility for setting up pixel-to-measurement conversion.
 
 ## 🏒 YOLO Models
-
-The system supports multiple YOLOv8 models with different performance characteristics:
 
 | Model | Size | Speed | Accuracy | Use Case |
 |-------|------|-------|----------|----------|
@@ -163,122 +157,86 @@ The system supports multiple YOLOv8 models with different performance characteri
 | `yolov8m.pt` | 52MB | Medium | High | Quality analysis |
 | `yolov8l.pt` | 88MB | Slow | Highest | Maximum accuracy |
 
-Models are automatically downloaded on first use.
+Models are automatically downloaded to `models/` directory on first use.
+
+## 🧪 Testing
+
+Run the test suite:
+
+```bash
+# Run all tests
+python -m pytest tests/
+
+# Run specific test categories
+python -m pytest tests/detection/      # Detection tests
+python -m pytest tests/analysis/       # Analysis tests
+python -m pytest tests/integration/    # Integration tests
+
+# Run legacy tests (during migration)
+python tests/detection/test_video_analysis.py
+python tests/integration/test_full_system.py
+```
 
 ## 🔧 Configuration
 
-### Video Requirements
-- **Format**: MP4 (other formats may work)
-- **Content**: Hockey games with clear ice surface view
-- **Quality**: Higher resolution recommended for better detection
-- **Placement**: Store test videos in `data/test_videos/`
+Configuration is managed through `hockey_analyzer/config/settings.py`:
 
-### Ice Detection Settings
-The system uses multiple detection methods:
-- **Color-based**: HSV and LAB color space analysis
-- **Texture-based**: Smooth surface detection
-- **Geometry-based**: Large flat area identification
-- **Marking-based**: Red center line and blue line detection
+```python
+from hockey_analyzer.config.settings import config
 
-### Calibration
-Manual calibration requires reference frames with known measurements:
-- Blue line width: 12 inches
-- Glass height: 48 inches  
-- Column width: 22 inches
+# Update model settings
+config.model.model_name = "yolov8l.pt"
+config.model.confidence_threshold = 0.5
+
+# Enable debug output
+config.debug.save_debug_images = True
+
+# Update analysis settings
+config.analysis.min_play_duration = 3.0
+```
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-**"YOLO model not found"**
+**"Module not found" errors**
 ```bash
-# Models auto-download, but you can manually download:
-# They'll be placed in the project root automatically
+# Make sure package is installed
+pip install -e .
+
+# Or add to Python path
+export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 ```
 
-**"Video not found"**
+**"YOLO model not found"**
 ```bash
-# Ensure video is in correct location:
-ls -la data/test_videos/
-# Videos should be .mp4 format
+# Check models directory
+ls models/
+# Download manually if needed from ultralytics
 ```
 
 **"No players detected"**
 ```bash
-# Try different YOLO models:
-python test_model_comparison.py
-# Check video quality and player visibility
+# Try different YOLO models
+python cli.py analyze video.mp4 --model yolov8l.pt
+
+# Lower confidence threshold
+python cli.py analyze video.mp4 --confidence 0.2
+
+# Enable debug output to see what's happening
+python cli.py analyze video.mp4 --debug
 ```
-
-**Debug images not generating**
-```bash
-# Ensure write permissions in project directory
-# Debug directories are auto-created
-ls -la debug_*_images/
-```
-
-### Performance Issues
-
-- **Slow processing**: Use smaller YOLO model (`yolov8n.pt`)
-- **Low accuracy**: Use larger YOLO model (`yolov8l.pt`)
-- **Memory issues**: Process shorter video segments
-- **GPU not used**: Install CUDA-compatible PyTorch version
 
 ## 🤝 Contributing
 
-### Development Workflow
-
-1. **Create feature branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-2. **Make changes and test**
-   ```bash
-   # Run relevant tests
-   python test_*.py
-   
-   # Check debug outputs
-   ls -la debug_*_images/
-   ```
-
-3. **Commit and push**
-   ```bash
-   git add .
-   git commit -m "Add: description of changes"
-   git push origin feature/your-feature-name
-   ```
-
-### Code Style
-- Follow PEP 8 Python style guidelines
-- Use descriptive variable names (`player_count` not `pc`)
-- Add docstrings to public methods
-- Include user-friendly print statements for status updates
-
-### Testing
-- Add test scripts for new features following `test_*.py` pattern
-- Ensure debug visualizations are generated for visual verification
-- Test with multiple YOLO models when relevant
-
-## 📊 Data Flow
-
-```
-Video Input → Player Detection (YOLO) → Ice Surface Detection → Calibration → Analysis → Statistics/Visualization
-     ↓              ↓                      ↓                    ↓            ↓
-Debug Images   Bounding Boxes        Ice Masks          Measurements    Game Stats
-```
-
-## 🔗 Dependencies
-
-Key libraries:
-- **OpenCV**: Video processing and computer vision
-- **Ultralytics**: YOLOv8 object detection
-- **NumPy**: Numerical computing
-- **Matplotlib**: Visualization and debug images
-- **Pandas**: Data analysis
-- **Streamlit**: Web dashboard (future)
-
-See `requirements.txt` for complete dependency list.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass (`python -m pytest`)
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
 
 ## 📝 License
 
@@ -287,10 +245,10 @@ This project is for educational and research purposes. YOLO models are subject t
 ## 🆘 Support
 
 For issues and questions:
-1. Check debug images in `debug_*_images/` directories
-2. Run individual test scripts to isolate problems
-3. Review console output for error messages
-4. Open GitHub issue with debug images and error logs
+1. Check the documentation in `docs/` directory
+2. Run with `--debug` flag to see detailed processing information
+3. Check existing GitHub issues
+4. Create a new issue with detailed information
 
 ---
 
