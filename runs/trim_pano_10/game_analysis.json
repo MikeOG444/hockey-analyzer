@@ -1,0 +1,83 @@
+{
+  "game_info": {
+    "video_path": "data/test_videos/Pano_10.mp4",
+    "analysis_date": "2025-09-30T23:15:42.069806",
+    "video_duration": 1.4333333333333333,
+    "total_frames_analyzed": 43
+  },
+  "game_stats": {
+    "total_frames": 43,
+    "processing_time": 5.044880151748657,
+    "avg_fps": 8.52349286931927,
+    "player_detection_rate": 1.0,
+    "puck_detection_rate": 0.0,
+    "team_confidence": 0.5639592014769027,
+    "total_plays": 0,
+    "zone_entries": 0,
+    "turnovers": 0,
+    "shots": 0
+  },
+  "team_info": {
+    "teams": {
+      "0": "TeamColors(primary_color=(np.int64(46), np.int64(45), np.int64(91)), secondary_color=None, team_name='Team 1', confidence=np.float64(0.578880260537983))",
+      "1": "TeamColors(primary_color=(np.int64(58), np.int64(48), np.int64(80)), secondary_color=None, team_name='Team 2', confidence=np.float64(0.6349404625153794))"
+    },
+    "team_stats": {
+      "team_counts": {},
+      "total_players": 0,
+      "avg_confidence": 0.0,
+      "teams_detected": 0
+    }
+  },
+  "zone_analysis": {
+    "zone_entries_by_team": {},
+    "time_in_zones": {},
+    "play_distribution": {}
+  },
+  "play_events": [],
+  "timestamps": [
+    0.0,
+    0.03333333333333333,
+    0.06666666666666667,
+    0.1,
+    0.13333333333333333,
+    0.16666666666666666,
+    0.2,
+    0.23333333333333334,
+    0.26666666666666666,
+    0.3,
+    0.3333333333333333,
+    0.36666666666666664,
+    0.4,
+    0.43333333333333335,
+    0.4666666666666667,
+    0.5,
+    0.5333333333333333,
+    0.5666666666666667,
+    0.6,
+    0.6333333333333333,
+    0.6666666666666666,
+    0.7,
+    0.7333333333333333,
+    0.7666666666666667,
+    0.8,
+    0.8333333333333334,
+    0.8666666666666667,
+    0.9,
+    0.9333333333333333,
+    0.9666666666666667,
+    1.0,
+    1.0333333333333334,
+    1.0666666666666667,
+    1.1,
+    1.1333333333333333,
+    1.1666666666666667,
+    1.2,
+    1.2333333333333334,
+    1.2666666666666666,
+    1.3,
+    1.3333333333333333,
+    1.3666666666666667,
+    1.4
+  ]
+}

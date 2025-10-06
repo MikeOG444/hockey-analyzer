@@ -1,0 +1,33 @@
+🏒 HOCKEY GAME ANALYSIS SUMMARY
+==================================================
+
+Video: data/test_videos/panoRink1.mp4
+Analysis Date: 2025-09-30T23:24:33.491282
+Game Duration: 24.8 seconds
+Frames Analyzed: 743
+
+PERFORMANCE METRICS:
+  Processing Speed: 10.5 fps
+  Player Detection Rate: 100.0%
+  Puck Detection Rate: 0.0%
+  Team ID Confidence: 49.7%
+
+GAME STATISTICS:
+  Total Plays Detected: 52
+  Zone Entries: 0
+  Turnovers: 0
+  Shots: 0
+
+PLAY TYPE DISTRIBUTION:
+  Power_Play: 52
+
+TEAM INFORMATION:
+  Team 2: Team 2
+    Primary Color: RGB(np.int64(66), np.int64(62), np.int64(105))
+    Confidence: 34.1%
+  Team 1: Team 1
+    Primary Color: RGB(np.int64(81), np.int64(81), np.int64(85))
+    Confidence: 58.4%
+
+==================================================
+Analysis complete! Review debug video and play events CSV for detailed insights.

@@ -1,0 +1,30 @@
+🏒 HOCKEY GAME ANALYSIS SUMMARY
+==================================================
+
+Video: data/test_videos/Pano_10.mp4
+Analysis Date: 2025-09-30T23:15:42.069806
+Game Duration: 1.4 seconds
+Frames Analyzed: 43
+
+PERFORMANCE METRICS:
+  Processing Speed: 8.5 fps
+  Player Detection Rate: 100.0%
+  Puck Detection Rate: 0.0%
+  Team ID Confidence: 56.4%
+
+GAME STATISTICS:
+  Total Plays Detected: 0
+  Zone Entries: 0
+  Turnovers: 0
+  Shots: 0
+
+TEAM INFORMATION:
+  Team 1: Team 1
+    Primary Color: RGB(np.int64(46), np.int64(45), np.int64(91))
+    Confidence: 57.9%
+  Team 2: Team 2
+    Primary Color: RGB(np.int64(58), np.int64(48), np.int64(80))
+    Confidence: 63.5%
+
+==================================================
+Analysis complete! Review debug video and play events CSV for detailed insights.
